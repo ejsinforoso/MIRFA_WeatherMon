@@ -51,16 +51,58 @@
       border-radius: 10px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: white;
+      padding: 10px 15px;
+      border-radius: 25px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      z-index: 1000;
+    }
+    .status-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #ccc;
+    }
+    .status-dot.online {
+      background: #4CAF50;
+      animation: pulse 1.5s infinite;
+    }
+    .status-dot.offline {
+      background: #f44336;
+    }
+    @keyframes pulse {
+      0% { transform: scale(0.95); }
+      50% { transform: scale(1.1); }
+      100% { transform: scale(0.95); }
+    }
+    .status-text {
+      font-size: 0.9em;
+      color: #666;
+    }
   </style>
 </head>
 <body>
+  <!-- Status Indicator -->
+  <div class="status-indicator">
+    <div class="status-dot" id="statusDot"></div>
+    <span class="status-text" id="statusText">Checking status...</span>
+  </div>
+
+  <!-- Dashboard Content -->
   <div class="dashboard">
     <h1 style="text-align: center; color: #2c3e50; margin-bottom: 30px;">MIRFA Weather Dashboard</h1>
     
     <div class="metric-container">
-      <!-- Temperature Block -->
+      <!-- Dry Bulb Block -->
       <div class="metric-block">
-        <div class="metric-label">Temperature</div>
+        <div class="metric-label">Dry Bulb</div>
         <div class="metric-value">
           <span id="temp">--</span>
           <span class="metric-unit">°C</span>
@@ -75,6 +117,25 @@
           <span class="metric-unit">%</span>
         </div>
       </div>
+
+      <!-- Dew Point Block -->
+      <div class="metric-block">
+        <div class="metric-label">Dew Point</div>
+        <div class="metric-value">
+          <span id="temp">--</span>
+          <span class="metric-unit">°C</span>
+        </div>
+      </div>
+
+      <!-- Wet Bulb Block -->
+      <div class="metric-block">
+        <div class="metric-label">Wet Bulb</div>
+        <div class="metric-value">
+          <span id="temp">--</span>
+          <span class="metric-unit">°C</span>
+        </div>
+      </div>
+
     </div>
 
     <div class="chart-card">
@@ -83,25 +144,68 @@
   </div>
 
   <script>
-    // (Keep the existing JavaScript code here - it will work with these HTML changes)
+    // ThingSpeak Configuration
     const CHANNEL_ID = '2961836';
     const READ_API_KEY = '1UKGIEX63W6G56PK';
     const THINGSPEAK_URL = `https://api.thingspeak.com/channels/${CHANNEL_ID}/feeds.json?api_key=${READ_API_KEY}&results=100`;
 
-    async function fetchData() {
-      try {
-        const response = await fetch(THINGSPEAK_URL);
-        const data = await response.json();
-        
-        const lastEntry = data.feeds[data.feeds.length - 1];
-        document.getElementById('temp').textContent = lastEntry.field1 ? parseFloat(lastEntry.field1).toFixed(1) : '--';
-        document.getElementById('hum').textContent = lastEntry.field2 ? parseFloat(lastEntry.field2).toFixed(1) : '--';
-        updateChart(data.feeds);
-      } catch (error) {
-        console.error('Error fetching data:', error);
+    // Status Management
+    function updateConnectivityStatus(online) {
+      const statusDot = document.getElementById('statusDot');
+      const statusText = document.getElementById('statusText');
+      
+      if(online) {
+        statusDot.classList.remove('offline');
+        statusDot.classList.add('online');
+        statusText.textContent = 'Online (Data current)';
+      } else {
+        statusDot.classList.remove('online');
+        statusDot.classList.add('offline');
+        statusText.textContent = 'Offline (No recent data)';
       }
     }
 
+    // Data Fetching and Processing
+    async function fetchData() {
+      try {
+        const response = await fetch(THINGSPEAK_URL);
+        
+        if(!response.ok) {
+          updateConnectivityStatus(false);
+          return;
+        }
+
+        const data = await response.json();
+        const feeds = data.feeds;
+
+        if(feeds.length > 0) {
+          const lastEntry = feeds[feeds.length - 1];
+          const lastUpdate = new Date(lastEntry.created_at);
+          const now = new Date();
+          const minutesAgo = (now - lastUpdate) / 1000 / 60;
+
+          // Update values
+          document.getElementById('temp').textContent = lastEntry.field1 ? 
+            parseFloat(lastEntry.field1).toFixed(1) : '--';
+          document.getElementById('hum').textContent = lastEntry.field2 ? 
+            parseFloat(lastEntry.field2).toFixed(1) : '--';
+          document.getElementById('temp').textContent = lastEntry.field3 ? 
+            parseFloat(lastEntry.field3).toFixed(1) : '--';
+          document.getElementById('temp').textContent = lastEntry.field4 ? 
+            parseFloat(lastEntry.field4).toFixed(1) : '--';
+
+          updateConnectivityStatus(minutesAgo < 2);
+          updateChart(feeds);
+        } else {
+          updateConnectivityStatus(false);
+        }
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        updateConnectivityStatus(false);
+      }
+    }
+
+    // Chart Configuration
     const ctx = document.getElementById('chart').getContext('2d');
     const chart = new Chart(ctx, {
       type: 'line',
@@ -110,12 +214,23 @@
         datasets: [{
           label: 'Temperature (°C)',
           data: [],
-          borderColor: 'red'
+          borderColor: 'red',
+          tension: 0.4
         }, {
           label: 'Humidity (%)',
           data: [],
-          borderColor: 'blue'
+          borderColor: 'blue',
+          tension: 0.4
         }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          y: {
+            beginAtZero: false
+          }
+        }
       }
     });
 
@@ -130,6 +245,10 @@
       chart.update();
     }
 
+    // Initial Setup
+    updateConnectivityStatus(navigator.onLine);
+    window.addEventListener('online', () => updateConnectivityStatus(true));
+    window.addEventListener('offline', () => updateConnectivityStatus(false));
     setInterval(fetchData, 15000);
     fetchData();
   </script>
