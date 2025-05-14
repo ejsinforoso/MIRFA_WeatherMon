@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Cloud Sensor Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: Arial, padding: 20px; }
+    .card { background: #fff; padding: 20px; margin: 20px auto; max-width: 800px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Temperature & Humidity</h1>
+    <div>
+      <p>Temperature: <span id="temp">--</span>°C</p>
+      <p>Humidity: <span id="hum">--</span>%</p>
+    </div>
+    <canvas id="chart"></canvas>
+  </div>
+
+  <script>
+    // ThingSpeak settings
+    const CHANNEL_ID = '2961836';
+    const READ_API_KEY = '1UKGIEX63W6G56PK';
+    const THINGSPEAK_URL = `https://api.thingspeak.com/channels/${CHANNEL_ID}/feeds.json?api_key=${READ_API_KEY}&results=100`;
+
+    // Fetch data from ThingSpeak
+    async function fetchData() {
+      try {
+        const response = await fetch(THINGSPEAK_URL);
+        const data = await response.json();
+        
+        // Update latest values
+        const lastEntry = data.feeds[data.feeds.length - 1];
+        document.getElementById('temp').textContent = lastEntry.field1 || '--';
+        document.getElementById('hum').textContent = lastEntry.field2 || '--';
+
+        // Update chart
+        updateChart(data.feeds);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      }
+    }
+
+    // Initialize chart
+    const ctx = document.getElementById('chart').getContext('2d');
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'Temperature (°C)',
+          data: [],
+          borderColor: 'red'
+        }, {
+          label: 'Humidity (%)',
+          data: [],
+          borderColor: 'blue'
+        }]
+      }
+    });
+
+    // Update chart with data
+    function updateChart(feeds) {
+      const labels = feeds.map(feed => new Date(feed.created_at).toLocaleTimeString());
+      const temps = feeds.map(feed => feed.field1);
+      const hums = feeds.map(feed => feed.field2);
+
+      chart.data.labels = labels;
+      chart.data.datasets[0].data = temps;
+      chart.data.datasets[1].data = hums;
+      chart.update();
+    }
+
+    // Refresh data every 15 seconds
+    setInterval(fetchData, 15000);
+    fetchData(); // Initial load
+  </script>
+</body>
+</html>
