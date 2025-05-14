@@ -1,48 +1,107 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Cloud Sensor Dashboard</title>
+  <title>MIRFA Weather</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body { font-family: Arial, padding: 20px; }
-    .card { background: #fff; padding: 20px; margin: 20px auto; max-width: 800px; }
+    body { 
+      font-family: Arial, sans-serif;
+      background: #f0f0f0;
+      padding: 20px;
+      margin: 0;
+    }
+    .dashboard {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .metric-block {
+      background: white;
+      padding: 25px;
+      margin: 15px;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      flex: 1;
+      min-width: 200px;
+    }
+    .metric-container {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 15px;
+      margin-bottom: 30px;
+    }
+    .metric-label {
+      color: #666;
+      font-size: 1.2em;
+      margin-bottom: 8px;
+    }
+    .metric-value {
+      font-size: 2.5em;
+      font-weight: bold;
+      color: #333;
+    }
+    .metric-unit {
+      font-size: 0.6em;
+      color: #888;
+      margin-left: 4px;
+    }
+    .chart-card {
+      background: white;
+      padding: 25px;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
   </style>
 </head>
 <body>
-  <div class="card">
-    <h1>Temperature & Humidity</h1>
-    <div>
-      <p>Temperature: <span id="temp">--</span>°C</p>
-      <p>Humidity: <span id="hum">--</span>%</p>
+  <div class="dashboard">
+    <h1 style="text-align: center; color: #2c3e50; margin-bottom: 30px;">MIRFA Weather Dashboard</h1>
+    
+    <div class="metric-container">
+      <!-- Temperature Block -->
+      <div class="metric-block">
+        <div class="metric-label">Temperature</div>
+        <div class="metric-value">
+          <span id="temp">--</span>
+          <span class="metric-unit">°C</span>
+        </div>
+      </div>
+
+      <!-- Humidity Block -->
+      <div class="metric-block">
+        <div class="metric-label">Humidity</div>
+        <div class="metric-value">
+          <span id="hum">--</span>
+          <span class="metric-unit">%</span>
+        </div>
+      </div>
     </div>
-    <canvas id="chart"></canvas>
+
+    <div class="chart-card">
+      <canvas id="chart"></canvas>
+    </div>
   </div>
 
   <script>
-    // ThingSpeak settings
+    // (Keep the existing JavaScript code here - it will work with these HTML changes)
     const CHANNEL_ID = '2961836';
     const READ_API_KEY = '1UKGIEX63W6G56PK';
     const THINGSPEAK_URL = `https://api.thingspeak.com/channels/${CHANNEL_ID}/feeds.json?api_key=${READ_API_KEY}&results=100`;
 
-    // Fetch data from ThingSpeak
     async function fetchData() {
       try {
         const response = await fetch(THINGSPEAK_URL);
         const data = await response.json();
         
-        // Update latest values
         const lastEntry = data.feeds[data.feeds.length - 1];
-        document.getElementById('temp').textContent = lastEntry.field1 || '--';
-        document.getElementById('hum').textContent = lastEntry.field2 || '--';
-
-        // Update chart
+        document.getElementById('temp').textContent = lastEntry.field1 ? parseFloat(lastEntry.field1).toFixed(1) : '--';
+        document.getElementById('hum').textContent = lastEntry.field2 ? parseFloat(lastEntry.field2).toFixed(1) : '--';
         updateChart(data.feeds);
       } catch (error) {
         console.error('Error fetching data:', error);
       }
     }
 
-    // Initialize chart
     const ctx = document.getElementById('chart').getContext('2d');
     const chart = new Chart(ctx, {
       type: 'line',
@@ -60,7 +119,6 @@
       }
     });
 
-    // Update chart with data
     function updateChart(feeds) {
       const labels = feeds.map(feed => new Date(feed.created_at).toLocaleTimeString());
       const temps = feeds.map(feed => feed.field1);
@@ -72,9 +130,8 @@
       chart.update();
     }
 
-    // Refresh data every 15 seconds
     setInterval(fetchData, 15000);
-    fetchData(); // Initial load
+    fetchData();
   </script>
 </body>
 </html>
