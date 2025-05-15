@@ -11,22 +11,20 @@
       margin: 0;
     }
     .dashboard {
-      max-width: 800px;
+      max-width: 1000px;
       margin: 0 auto;
     }
     .metric-block {
       background: white;
       padding: 25px;
-      margin: 15px;
       border-radius: 10px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.1);
       flex: 1;
       min-width: 200px;
     }
     .metric-container {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
       gap: 15px;
       margin-bottom: 30px;
     }
@@ -86,6 +84,11 @@
       font-size: 0.9em;
       color: #666;
     }
+    h1 {
+      text-align: center;
+      color: #2c3e50;
+      margin-bottom: 30px;
+    }
   </style>
 </head>
 <body>
@@ -97,12 +100,12 @@
 
   <!-- Dashboard Content -->
   <div class="dashboard">
-    <h1 style="text-align: center; color: #2c3e50; margin-bottom: 30px;">MIRFA Weather Dashboard</h1>
+    <h1>MIRFA Weather Monitor</h1>
     
     <div class="metric-container">
-      <!-- Dry Bulb Block -->
+      <!-- Temperature Block -->
       <div class="metric-block">
-        <div class="metric-label">Dry Bulb</div>
+        <div class="metric-label">Temperature</div>
         <div class="metric-value">
           <span id="temp">--</span>
           <span class="metric-unit">°C</span>
@@ -122,7 +125,7 @@
       <div class="metric-block">
         <div class="metric-label">Dew Point</div>
         <div class="metric-value">
-          <span id="temp">--</span>
+          <span id="dew">--</span>
           <span class="metric-unit">°C</span>
         </div>
       </div>
@@ -131,11 +134,10 @@
       <div class="metric-block">
         <div class="metric-label">Wet Bulb</div>
         <div class="metric-value">
-          <span id="temp">--</span>
+          <span id="wb">--</span>
           <span class="metric-unit">°C</span>
         </div>
       </div>
-
     </div>
 
     <div class="chart-card">
@@ -157,11 +159,11 @@
       if(online) {
         statusDot.classList.remove('offline');
         statusDot.classList.add('online');
-        statusText.textContent = 'Online (Data current)';
+        statusText.textContent = 'Device Online (Data current)';
       } else {
         statusDot.classList.remove('online');
         statusDot.classList.add('offline');
-        statusText.textContent = 'Offline (No recent data)';
+        statusText.textContent = 'Device Offline (Device OFF / No recent data)';
       }
     }
 
@@ -184,14 +186,14 @@
           const now = new Date();
           const minutesAgo = (now - lastUpdate) / 1000 / 60;
 
-          // Update values
+          // Update all values
           document.getElementById('temp').textContent = lastEntry.field1 ? 
             parseFloat(lastEntry.field1).toFixed(1) : '--';
           document.getElementById('hum').textContent = lastEntry.field2 ? 
             parseFloat(lastEntry.field2).toFixed(1) : '--';
-          document.getElementById('temp').textContent = lastEntry.field3 ? 
+          document.getElementById('dew').textContent = lastEntry.field3 ? 
             parseFloat(lastEntry.field3).toFixed(1) : '--';
-          document.getElementById('temp').textContent = lastEntry.field4 ? 
+          document.getElementById('wb').textContent = lastEntry.field4 ? 
             parseFloat(lastEntry.field4).toFixed(1) : '--';
 
           updateConnectivityStatus(minutesAgo < 2);
@@ -211,24 +213,68 @@
       type: 'line',
       data: {
         labels: [],
-        datasets: [{
-          label: 'Temperature (°C)',
-          data: [],
-          borderColor: 'red',
-          tension: 0.4
-        }, {
-          label: 'Humidity (%)',
-          data: [],
-          borderColor: 'blue',
-          tension: 0.4
-        }]
+        datasets: [
+          {
+            label: 'Temperature (°C)',
+            data: [],
+            borderColor: 'red',
+            backgroundColor: 'rgba(255, 0, 0, 0.1)',
+            tension: 0.4,
+            borderWidth: 2
+          },
+          {
+            label: 'Humidity (%)',
+            data: [],
+            borderColor: 'blue',
+            backgroundColor: 'rgba(0, 0, 255, 0.1)',
+            tension: 0.4,
+            borderWidth: 2,
+            yAxisID: 'y1'
+          },
+          {
+            label: 'Dew Point (°C)',
+            data: [],
+            borderColor: 'green',
+            backgroundColor: 'rgba(0, 255, 0, 0.1)',
+            tension: 0.4,
+            borderWidth: 2
+          },
+          {
+            label: 'Wet Bulb (°C)',
+            data: [],
+            borderColor: 'orange',
+            backgroundColor: 'rgba(255, 165, 0, 0.1)',
+            tension: 0.4,
+            borderWidth: 2
+          }
+        ]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
         scales: {
           y: {
-            beginAtZero: false
+            type: 'linear',
+            display: true,
+            position: 'left',
+            title: {
+              display: true,
+              text: 'Temperature (°C)'
+            }
+          },
+          y1: {
+            type: 'linear',
+            display: true,
+            position: 'right',
+            title: {
+              display: true,
+              text: 'Humidity (%)'
+            },
+            grid: {
+              drawOnChartArea: false
+            },
+            min: 0,
+            max: 100
           }
         }
       }
@@ -236,12 +282,13 @@
 
     function updateChart(feeds) {
       const labels = feeds.map(feed => new Date(feed.created_at).toLocaleTimeString());
-      const temps = feeds.map(feed => feed.field1);
-      const hums = feeds.map(feed => feed.field2);
-
+      
       chart.data.labels = labels;
-      chart.data.datasets[0].data = temps;
-      chart.data.datasets[1].data = hums;
+      chart.data.datasets[0].data = feeds.map(feed => feed.field1); // Temp
+      chart.data.datasets[1].data = feeds.map(feed => feed.field2); // Hum
+      //chart.data.datasets[2].data = feeds.map(feed => feed.field3); // Dew
+      //chart.data.datasets[3].data = feeds.map(feed => feed.field4); // WB
+      
       chart.update();
     }
 
