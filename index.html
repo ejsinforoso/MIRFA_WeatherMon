@@ -98,44 +98,51 @@
     <span class="status-text" id="statusText">Checking status...</span>
   </div>
 
+  <!-- Notification Banner -->
+  <div id="notify" style="
+    display: none;
+    position: fixed;
+    top: 70px;
+    right: 20px;
+    background-color: #fff3cd;
+    border: 1px solid #ffeeba;
+    color: #856404;
+    padding: 10px 15px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    z-index: 1001;
+  "></div>
+
   <!-- Dashboard Content -->
   <div class="dashboard">
     <h1>MIRFA DC Weather Monitor</h1>
     
     <div class="metric-container">
-      <!-- Temperature Block -->
       <div class="metric-block">
         <div class="metric-label">Temperature</div>
         <div class="metric-value">
-          <span id="temp">--</span>
-          <span class="metric-unit">°C</span>
+          <span id="temp">--</span><span class="metric-unit">°C</span>
         </div>
       </div>
 
-      <!-- Humidity Block -->
       <div class="metric-block">
         <div class="metric-label">Humidity</div>
         <div class="metric-value">
-          <span id="hum">--</span>
-          <span class="metric-unit">%</span>
+          <span id="hum">--</span><span class="metric-unit">%</span>
         </div>
       </div>
 
-      <!-- Dew Point Block -->
       <div class="metric-block">
         <div class="metric-label">Dew Point</div>
         <div class="metric-value">
-          <span id="dew">--</span>
-          <span class="metric-unit">°C</span>
+          <span id="dew">--</span><span class="metric-unit">°C</span>
         </div>
       </div>
 
-      <!-- Wet Bulb Block -->
       <div class="metric-block">
         <div class="metric-label">Wet Bulb</div>
         <div class="metric-value">
-          <span id="wb">--</span>
-          <span class="metric-unit">°C</span>
+          <span id="wb">--</span><span class="metric-unit">°C</span>
         </div>
       </div>
     </div>
@@ -146,16 +153,13 @@
   </div>
 
   <script>
-    // ThingSpeak Configuration
     const CHANNEL_ID = '2961836';
     const READ_API_KEY = '1UKGIEX63W6G56PK';
     const THINGSPEAK_URL = `https://api.thingspeak.com/channels/${CHANNEL_ID}/feeds.json?api_key=${READ_API_KEY}&results=100`;
 
-    // Status Management
     function updateConnectivityStatus(online) {
       const statusDot = document.getElementById('statusDot');
       const statusText = document.getElementById('statusText');
-      
       if(online) {
         statusDot.classList.remove('offline');
         statusDot.classList.add('online');
@@ -167,12 +171,19 @@
       }
     }
 
-    // Data Fetching and Processing
+    function showNotification(message) {
+      const notify = document.getElementById('notify');
+      notify.textContent = message;
+      notify.style.display = 'block';
+      setTimeout(() => {
+        notify.style.display = 'none';
+      }, 10000); // Hide after 10 seconds
+    }
+
     async function fetchData() {
       try {
         const response = await fetch(THINGSPEAK_URL);
-        
-        if(!response.ok) {
+        if (!response.ok) {
           updateConnectivityStatus(false);
           return;
         }
@@ -180,24 +191,45 @@
         const data = await response.json();
         const feeds = data.feeds;
 
-        if(feeds.length > 0) {
+        if (feeds.length > 0) {
           const lastEntry = feeds[feeds.length - 1];
           const lastUpdate = new Date(lastEntry.created_at);
           const now = new Date();
           const minutesAgo = (now - lastUpdate) / 1000 / 60;
 
-          // Update all values
-          document.getElementById('temp').textContent = lastEntry.field1 ? 
-            parseFloat(lastEntry.field1).toFixed(1) : '--';
-          document.getElementById('hum').textContent = lastEntry.field2 ? 
-            parseFloat(lastEntry.field2).toFixed(1) : '--';
-          document.getElementById('dew').textContent = lastEntry.field3 ? 
-            parseFloat(lastEntry.field3).toFixed(1) : '--';
-          document.getElementById('wb').textContent = lastEntry.field4 ? 
-            parseFloat(lastEntry.field4).toFixed(1) : '--';
+          const temp = lastEntry.field1 ? parseFloat(lastEntry.field1) : null;
+          const hum  = lastEntry.field2 ? parseFloat(lastEntry.field2) : null;
+          const dew  = lastEntry.field3 ? parseFloat(lastEntry.field3) : null;
+          const wb   = lastEntry.field4 ? parseFloat(lastEntry.field4) : null;
+
+          document.getElementById('temp').textContent = temp?.toFixed(1) ?? '--';
+          document.getElementById('hum').textContent  = hum?.toFixed(1) ?? '--';
+          document.getElementById('dew').textContent  = dew?.toFixed(1) ?? '--';
+          document.getElementById('wb').textContent   = wb?.toFixed(1) ?? '--';
 
           updateConnectivityStatus(minutesAgo < 2);
           updateChart(feeds);
+
+          // High Temperature Alert
+          if (temp !== null && temp > 38) {
+            alert('⚠️ High Temperature Alert: ' + temp.toFixed(1) + ' °C');
+          }
+
+          // Fog Detection: Temp ≈ Dew Point + High Humidity
+          if (temp !== null && dew !== null && hum !== null) {
+            const diff = Math.abs(temp - dew);
+            if (diff <= 2.5 && hum >= 90) {
+              showNotification(`🌫️ Fog Likely: Temp = ${temp.toFixed(1)}°C, Dew Point = ${dew.toFixed(1)}°C, Humidity = ${hum.toFixed(1)}%`);
+            }
+          }
+
+          // Rain Likelihood
+          if (dew !== null && hum !== null && temp !== null) {
+            if (hum >= 95 && dew >= 20 && temp >= dew) {
+              showNotification(`🌧️ Rain Possible: Dew Point = ${dew.toFixed(1)}°C, Humidity = ${hum.toFixed(1)}%`);
+            }
+          }
+
         } else {
           updateConnectivityStatus(false);
         }
@@ -207,7 +239,6 @@
       }
     }
 
-    // Chart Configuration
     const ctx = document.getElementById('chart').getContext('2d');
     const chart = new Chart(ctx, {
       type: 'line',
@@ -230,22 +261,6 @@
             tension: 0.4,
             borderWidth: 2,
             yAxisID: 'y1'
-          },
-          {
-            label: 'Dew Point (°C)',
-            data: [],
-            borderColor: 'green',
-            backgroundColor: 'rgba(0, 255, 0, 0.1)',
-            tension: 0.4,
-            borderWidth: 2
-          },
-          {
-            label: 'Wet Bulb (°C)',
-            data: [],
-            borderColor: 'orange',
-            backgroundColor: 'rgba(255, 165, 0, 0.1)',
-            tension: 0.4,
-            borderWidth: 2
           }
         ]
       },
@@ -282,17 +297,12 @@
 
     function updateChart(feeds) {
       const labels = feeds.map(feed => new Date(feed.created_at).toLocaleTimeString());
-      
       chart.data.labels = labels;
       chart.data.datasets[0].data = feeds.map(feed => feed.field1); // Temp
       chart.data.datasets[1].data = feeds.map(feed => feed.field2); // Hum
-      //chart.data.datasets[2].data = feeds.map(feed => feed.field3); // Dew
-      //chart.data.datasets[3].data = feeds.map(feed => feed.field4); // WB
-      
       chart.update();
     }
 
-    // Initial Setup
     updateConnectivityStatus(navigator.onLine);
     window.addEventListener('online', () => updateConnectivityStatus(true));
     window.addEventListener('offline', () => updateConnectivityStatus(false));
