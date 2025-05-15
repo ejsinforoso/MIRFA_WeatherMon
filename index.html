@@ -89,6 +89,22 @@
       color: #2c3e50;
       margin-bottom: 30px;
     }
+
+    /* Notification */
+    #notify {
+      display: none;
+      position: fixed;
+      top: 70px;
+      right: 20px;
+      background-color: #fff3cd;
+      border: 1px solid #ffeeba;
+      color: #856404;
+      padding: 10px 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      z-index: 1001;
+      max-width: 300px;
+    }
   </style>
 </head>
 <body>
@@ -99,19 +115,7 @@
   </div>
 
   <!-- Notification Banner -->
-  <div id="notify" style="
-    display: none;
-    position: fixed;
-    top: 70px;
-    right: 20px;
-    background-color: #fff3cd;
-    border: 1px solid #ffeeba;
-    color: #856404;
-    padding: 10px 15px;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-    z-index: 1001;
-  "></div>
+  <div id="notify"></div>
 
   <!-- Dashboard Content -->
   <div class="dashboard">
@@ -210,12 +214,12 @@
           updateConnectivityStatus(minutesAgo < 2);
           updateChart(feeds);
 
-          // High Temperature Alert
+          // 🔥 High Temperature Notification
           if (temp !== null && temp > 38) {
-            alert('⚠️ High Temperature Alert: ' + temp.toFixed(1) + ' °C');
+            showNotification(`🔥 High Temperature Alert: ${temp.toFixed(1)} °C`);
           }
 
-          // Fog Detection: Temp ≈ Dew Point + High Humidity
+          // 🌫️ Fog Detection
           if (temp !== null && dew !== null && hum !== null) {
             const diff = Math.abs(temp - dew);
             if (diff <= 2.5 && hum >= 90) {
@@ -223,7 +227,7 @@
             }
           }
 
-          // Rain Likelihood
+          // 🌧️ Rain Likelihood
           if (dew !== null && hum !== null && temp !== null) {
             if (hum >= 95 && dew >= 20 && temp >= dew) {
               showNotification(`🌧️ Rain Possible: Dew Point = ${dew.toFixed(1)}°C, Humidity = ${hum.toFixed(1)}%`);
