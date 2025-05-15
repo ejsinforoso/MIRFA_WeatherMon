@@ -4,7 +4,7 @@
   <title>MIRFA Weather</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body { 
+    body {
       font-family: Arial, sans-serif;
       background: #f0f0f0;
       padding: 20px;
@@ -90,37 +90,47 @@
       margin-bottom: 30px;
     }
 
-    /* Notification */
-    #notify {
-      display: none;
-      position: fixed;
-      top: 70px;
-      right: 20px;
-      background-color: #fff3cd;
-      border: 1px solid #ffeeba;
-      color: #856404;
-      padding: 10px 15px;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-      z-index: 1001;
-      max-width: 300px;
+    /* Alert Card */
+    .alert-card {
+      background: #eee;
+      border-left: 8px solid #ccc;
+      padding: 15px 20px;
+      margin-bottom: 25px;
+      border-radius: 10px;
+      transition: background 0.3s, border-color 0.3s;
+    }
+    .alert-card.active {
+      background: #fff3cd;
+      border-left-color: #ffc107;
+      animation: alert-glow 1s infinite alternate;
+    }
+    @keyframes alert-glow {
+      from { box-shadow: 0 0 10px rgba(255,193,7,0.3); }
+      to   { box-shadow: 0 0 15px rgba(255,193,7,0.6); }
+    }
+    .alert-message {
+      font-size: 1.1em;
+      color: #555;
     }
   </style>
 </head>
 <body>
+
   <!-- Status Indicator -->
   <div class="status-indicator">
     <div class="status-dot" id="statusDot"></div>
     <span class="status-text" id="statusText">Checking status...</span>
   </div>
 
-  <!-- Notification Banner -->
-  <div id="notify"></div>
-
   <!-- Dashboard Content -->
   <div class="dashboard">
     <h1>MIRFA DC Weather Monitor</h1>
-    
+
+    <!-- Alert Card -->
+    <div id="alertCard" class="alert-card">
+      <div class="alert-message" id="alertMessage">No active weather alerts</div>
+    </div>
+
     <div class="metric-container">
       <div class="metric-block">
         <div class="metric-label">Temperature</div>
@@ -128,21 +138,18 @@
           <span id="temp">--</span><span class="metric-unit">°C</span>
         </div>
       </div>
-
       <div class="metric-block">
         <div class="metric-label">Humidity</div>
         <div class="metric-value">
           <span id="hum">--</span><span class="metric-unit">%</span>
         </div>
       </div>
-
       <div class="metric-block">
         <div class="metric-label">Dew Point</div>
         <div class="metric-value">
           <span id="dew">--</span><span class="metric-unit">°C</span>
         </div>
       </div>
-
       <div class="metric-block">
         <div class="metric-label">Wet Bulb</div>
         <div class="metric-value">
@@ -164,7 +171,7 @@
     function updateConnectivityStatus(online) {
       const statusDot = document.getElementById('statusDot');
       const statusText = document.getElementById('statusText');
-      if(online) {
+      if (online) {
         statusDot.classList.remove('offline');
         statusDot.classList.add('online');
         statusText.textContent = 'Device Online (Data current)';
@@ -175,13 +182,16 @@
       }
     }
 
-    function showNotification(message) {
-      const notify = document.getElementById('notify');
-      notify.textContent = message;
-      notify.style.display = 'block';
-      setTimeout(() => {
-        notify.style.display = 'none';
-      }, 10000); // Hide after 10 seconds
+    function updateAlertCard(message) {
+      const alertCard = document.getElementById('alertCard');
+      const alertMessage = document.getElementById('alertMessage');
+      if (message) {
+        alertCard.classList.add('active');
+        alertMessage.textContent = message;
+      } else {
+        alertCard.classList.remove('active');
+        alertMessage.textContent = 'No active weather alerts';
+      }
     }
 
     async function fetchData() {
@@ -194,51 +204,43 @@
 
         const data = await response.json();
         const feeds = data.feeds;
-
-        if (feeds.length > 0) {
-          const lastEntry = feeds[feeds.length - 1];
-          const lastUpdate = new Date(lastEntry.created_at);
-          const now = new Date();
-          const minutesAgo = (now - lastUpdate) / 1000 / 60;
-
-          const temp = lastEntry.field1 ? parseFloat(lastEntry.field1) : null;
-          const hum  = lastEntry.field2 ? parseFloat(lastEntry.field2) : null;
-          const dew  = lastEntry.field3 ? parseFloat(lastEntry.field3) : null;
-          const wb   = lastEntry.field4 ? parseFloat(lastEntry.field4) : null;
-
-          document.getElementById('temp').textContent = temp?.toFixed(1) ?? '--';
-          document.getElementById('hum').textContent  = hum?.toFixed(1) ?? '--';
-          document.getElementById('dew').textContent  = dew?.toFixed(1) ?? '--';
-          document.getElementById('wb').textContent   = wb?.toFixed(1) ?? '--';
-
-          updateConnectivityStatus(minutesAgo < 2);
-          updateChart(feeds);
-
-          // 🔥 High Temperature Notification
-          if (temp !== null && temp > 38) {
-            showNotification(`🔥 High Temperature Alert: ${temp.toFixed(1)} °C`);
-          }
-
-          // 🌫️ Fog Detection
-          if (temp !== null && dew !== null && hum !== null) {
-            const diff = Math.abs(temp - dew);
-            if (diff <= 2.5 && hum >= 90) {
-              showNotification(`🌫️ Fog Likely: Temp = ${temp.toFixed(1)}°C, Dew Point = ${dew.toFixed(1)}°C, Humidity = ${hum.toFixed(1)}%`);
-            }
-          }
-
-          // 🌧️ Rain Likelihood
-          if (dew !== null && hum !== null && temp !== null) {
-            if (hum >= 95 && dew >= 20 && temp >= dew) {
-              showNotification(`🌧️ Rain Possible: Dew Point = ${dew.toFixed(1)}°C, Humidity = ${hum.toFixed(1)}%`);
-            }
-          }
-
-        } else {
+        if (feeds.length === 0) {
           updateConnectivityStatus(false);
+          return;
         }
-      } catch (error) {
-        console.error('Error fetching data:', error);
+
+        const lastEntry = feeds[feeds.length - 1];
+        const lastUpdate = new Date(lastEntry.created_at);
+        const now = new Date();
+        const minutesAgo = (now - lastUpdate) / 1000 / 60;
+
+        const temp = parseFloat(lastEntry.field1) || null;
+        const hum  = parseFloat(lastEntry.field2) || null;
+        const dew  = parseFloat(lastEntry.field3) || null;
+        const wb   = parseFloat(lastEntry.field4) || null;
+
+        document.getElementById('temp').textContent = temp?.toFixed(1) ?? '--';
+        document.getElementById('hum').textContent  = hum?.toFixed(1) ?? '--';
+        document.getElementById('dew').textContent  = dew?.toFixed(1) ?? '--';
+        document.getElementById('wb').textContent   = wb?.toFixed(1) ?? '--';
+
+        updateConnectivityStatus(minutesAgo < 2);
+        updateChart(feeds);
+
+        let alert = '';
+
+        if (temp !== null && temp > 38) {
+          alert = `High Temperature Alert: ${temp.toFixed(1)}°C`;
+        } else if (temp !== null && dew !== null && Math.abs(temp - dew) < 2) {
+          alert = `Fog Likely: Temp and Dew Point are close`;
+        } else if (hum !== null && hum > 85 && dew !== null && dew >= 20) {
+          alert = `Rain Possible: High humidity and dew point`;
+        }
+
+        updateAlertCard(alert);
+
+      } catch (err) {
+        console.error('Error fetching data:', err);
         updateConnectivityStatus(false);
       }
     }
@@ -300,10 +302,10 @@
     });
 
     function updateChart(feeds) {
-      const labels = feeds.map(feed => new Date(feed.created_at).toLocaleTimeString());
+      const labels = feeds.map(f => new Date(f.created_at).toLocaleTimeString());
       chart.data.labels = labels;
-      chart.data.datasets[0].data = feeds.map(feed => feed.field1); // Temp
-      chart.data.datasets[1].data = feeds.map(feed => feed.field2); // Hum
+      chart.data.datasets[0].data = feeds.map(f => f.field1); // Temp
+      chart.data.datasets[1].data = feeds.map(f => f.field2); // Hum
       chart.update();
     }
 
